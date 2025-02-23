@@ -1,0 +1,116 @@
+#! /bin/sh
+
+pgrep -x sxhkd > /dev/null || sxhkd &
+xrandr -r 120
+
+bspc monitor eDP-1 -d I II III IV V VI VII VIII IX X
+
+# Second monitor
+# if [[ $(xrandr -q | grep 'DP-2 connected') ]]; then 
+#   xrandr --output eDP-1 --primary --rotate normal --output DP-2 --mode 2560x1440 -r 164.55 --right-of eDP-1 --rotate normal --scale '1.85x1.85'
+#   bspc monitor DP-2 -d XI XII XIII XIV XV XVI XVII XVIII XIX XX
+# else
+#   xrandr --output DP-2 --off 
+#   while bspc node @XI: --kill; do
+#     :
+#   done
+#   while bspc node @XII: --kill; do
+#     :
+#   done
+#   while bspc node @XIII: --kill; do
+#     :
+#   done
+#   while bspc node @XIV: --kill; do
+#     :
+#   done
+#   while bspc node @XV: --kill; do
+#     :
+#   done
+#   while bspc node @XVI: --kill; do
+#     :
+#   done
+#   while bspc node @XVII: --kill; do
+#     :
+#   done
+#   while bspc node @XVIII: --kill; do
+#     :
+#   done
+#   while bspc node @XIX: --kill; do
+#     :
+#   done
+#   while bspc node @XX: --kill; do
+#     :
+#   done
+#   bspc desktop -r XI XII XIII XIV XV XVI XVII XVIII XIX XX
+#   bspc monitor DP-2 -r
+# fi
+dp_connected=$(xrandr -q | grep -P '^(DP-\d+) connected' | grep -v 'eDP-1' | cut -d' ' -f1 | uniq)
+
+if [[ -n $dp_connected ]]; then 
+  # Configure the second monitor if a DP connection is found
+  xrandr --output eDP-1 --primary --rotate normal --output $dp_connected --mode $(xrandr | grep -A 1 ^"$dp_connected" | grep -oP '\d+x\d+') -r 164.55 --right-of eDP-1 --rotate normal --scale '1.85x1.85'
+
+  # export MONITOR=$dp_connected
+  
+  # Assign desktops to the second monitor (DP connected)
+  bspc monitor $dp_connected -d XI XII XIII XIV XV XVI XVII XVIII XIX XX
+
+else
+  # Turn off the second monitor if no DP connection is found
+  xrandr --output $dp_connected --off
+
+  # Kill nodes on the desktops assigned to the second monitor
+  for desktop in XI XII XIII XIV XV XVI XVII XVIII XIX XX; do
+    while bspc node @"$desktop": --kill; do
+      :
+    done
+  done
+
+  # Remove desktops XI-XX from the bspwm configuration
+  bspc desktop -r XI XII XIII XIV XV XVI XVII XVIII XIX XX
+
+  # Remove the DP monitor from bspwm
+  bspc monitor $dp_connected -r
+fi
+
+feh --bg-center $HOME/.config/gitclone/Wallpapers/nord-mountains.png
+
+bspc config border_width         2
+bspc config window_gap          10
+
+bspc config focused_border_color "#eceff4"
+bspc config normal_border_color "#81A1C1"
+
+bspc config split_ratio          0.50
+bspc config borderless_monocle   false
+bspc config gapless_monocle      false
+bspc config pointer_follows_monitor true
+
+
+#AutoStart applications
+sxhkd &
+picom --config $HOME/.config/picom/picom.conf &
+nitrogen --restore &
+polybar primary &
+MONITOR="$dp_connected" polybar secondary &
+feh &
+
+
+if [ $(bspc query -N -d|wc -l) == "1" ]; then echo "split_dir=south"; fi
+
+rfkill unblock bluetooth &
+sudo systemctl start bluetooth.service &
+bluetoothctl power on &
+sleep 5
+
+keychron_mac=$(bluetoothctl devices | grep "Keychron K6" | awk '{print $2}') 
+
+if [ -n "$keychron_mac" ]; then
+  bluetoothctl connect "$keychron_mac" &
+fi
+
+# Touchpad gestures and scroll settings
+xinput set-prop $(xinput list | grep Touchpad | grep -E -o 'id=[0-9]+' | grep -E -o '[0-9]+') "Synaptics Two-Finger Scrolling" 1 1 &
+xinput set-prop $(xinput list | grep Touchpad | grep -E -o 'id=[0-9]+' | grep -E -o '[0-9]+') "Synaptics Scrolling Distance" -170 -150 &
+xinput set-prop $(xinput list | grep Touchpad | grep -E 'id=[0-9]+' | grep -E -o '[0-9]+') "Synaptics Tap Action" 0 0 0 0 1 2 0
+
